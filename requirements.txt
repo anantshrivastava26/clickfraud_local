@@ -1,0 +1,29 @@
+# Core Data & ML
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.5.1
+joblib==1.4.2
+matplotlib==3.9.2
+
+# Web UI
+streamlit==1.38.0
+streamlit-autorefresh==1.0.1
+
+# Backend (API & Server)
+fastapi==0.115.0
+uvicorn==0.30.6
+
+# HTTP Requests
+requests==2.32.3
+
+# AWS Integration
+boto3==1.35.21
+s3fs==2024.6.1
+
+# Utility / Time Handling
+python-dateutil==2.9.0.post0
+pytz==2024.1
+
+# Optional but Recommended for Local Dev
+tqdm==4.66.5     # progress bars for training / data processing
+colorama==0.4.6  # nice colored console output
