@@ -24,12 +24,18 @@ st.set_page_config(page_title="Click Fraud Detection Dashboard", page_icon="🚨
 def load_model_and_data():
     """Load scaler, model, and dataset"""
     scaler_data = joblib.load(SCALER_OUT)
+
     if isinstance(scaler_data, dict):
         scaler = scaler_data["scaler"]
         feature_names = scaler_data["features"]
     else:
         scaler = scaler_data
-        feature_names = getattr(scaler, "feature_names_in_", None)
+        # fallback: read from CSV if available
+        try:
+            df_tmp = pd.read_csv(FEATURES_OUT, nrows=1)
+            feature_names = list(df_tmp.select_dtypes(include=[np.number]).columns)
+        except Exception:
+            feature_names = getattr(scaler, "feature_names_in_", [])
 
     model = joblib.load(MODEL_OUT)
     df = pd.read_csv(FEATURES_OUT)
@@ -225,4 +231,67 @@ ax2.set_xlabel("PCA 1")
 ax2.set_ylabel("PCA 2")
 ax2.set_title("Red = Suspicious | Blue = Normal", fontsize=10)
 st.pyplot(fig2, use_container_width=False)
+# -----------------------------
+# LIVE FEED: REAL-TIME DETECTIONS
+# -----------------------------
+import json, os, streamlit_autorefresh
+from datetime import datetime
+from streamlit_autorefresh import st_autorefresh  # ✅ add this at top of file too (pip install streamlit-autorefresh)
 
+st.subheader("🚨 Live Fraud Detection Feed")
+
+# Refresh every N seconds (non-blocking)
+refresh_interval = st.slider("Auto-refresh interval (seconds)", 2, 15, 5)
+st_autorefresh(interval=refresh_interval * 1000, key="fraud_feed_refresh")
+
+def read_latest_detections(limit=30):
+    """Read and parse the latest scored sessions"""
+    if not os.path.exists("scored_sessions.jsonl"):
+        return pd.DataFrame()
+
+    rows = []
+    with open("scored_sessions.jsonl", "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                rows.append(json.loads(line))
+            except Exception:
+                continue
+
+    if not rows:
+        return pd.DataFrame()
+
+    df_live = pd.DataFrame(rows)
+    df_live["timestamp"] = pd.to_datetime(df_live["timestamp"], errors="coerce")
+    df_live = df_live.sort_values("timestamp", ascending=False).head(limit)
+    return df_live
+
+# Load recent detections
+live_df = read_latest_detections()
+
+if not live_df.empty:
+    suspicious_count = int((live_df["is_outlier"] == 1).sum())
+    normal_count = int((live_df["is_outlier"] == 0).sum())
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Recent Suspicious", suspicious_count)
+    col2.metric("Recent Normal", normal_count)
+    col3.metric("Total Recent", len(live_df))
+
+    # Color code suspicious rows
+    def highlight_rows(row):
+        color = "#ff0000" if row["is_outlier"] == 1 else "#00a100"
+        return [f"background-color: {color}"] * len(row)
+
+    st.dataframe(
+        live_df[["user_id", "timestamp", "score", "is_outlier", "event_count"]]
+        .style.apply(highlight_rows, axis=1),
+        use_container_width=True,
+        height=300
+    )
+
+    # Mini trend chart
+    trend = live_df.groupby("is_outlier")["score"].count().rename({0: "Normal", 1: "Suspicious"})
+    st.bar_chart(trend)
+
+else:
+    st.info("🕒 Waiting for detections from receiver_fastapi.py ...")

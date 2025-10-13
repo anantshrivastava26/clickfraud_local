@@ -208,16 +208,26 @@ if __name__ == "__main__":
     # remove constant columns if any
     X = X.loc[:, X.std() > 0.0]
 
-    # 4) Scale
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-    joblib.dump(scaler, SCALER_OUT)
-    print(f"Saved scaler -> {SCALER_OUT}")
+   # 4) Scale
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
 
-    # 5) Train IsolationForest
-    print("Training IsolationForest...")
-    model = IsolationForest(n_estimators=200, contamination=0.02, random_state=42, n_jobs=-1)
-    model.fit(X_scaled)
-    joblib.dump(model, MODEL_OUT)
-    print(f"Saved model -> {MODEL_OUT}")
-    print("Done.")
+# ✅ Save both scaler and feature names
+feature_names = list(X.columns)
+joblib.dump({"scaler": scaler, "features": feature_names}, SCALER_OUT)
+print(f"✅ Saved scaler + {len(feature_names)} features -> {SCALER_OUT}")
+print("Feature names preview:", feature_names[:10])
+
+# 5) Train IsolationForest
+print("Training IsolationForest...")
+model = IsolationForest(
+    n_estimators=200,
+    contamination=0.02,
+    random_state=42,
+    n_jobs=-1
+)
+model.fit(X_scaled)
+joblib.dump(model, MODEL_OUT)
+print(f"✅ Saved model -> {MODEL_OUT}")
+print("Done training successfully.")
+

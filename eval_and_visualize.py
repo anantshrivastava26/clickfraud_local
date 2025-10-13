@@ -4,65 +4,70 @@ import joblib
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
 
 FEATURES_OUT = "session_features.csv"
 MODEL_OUT = "isoforest_model.joblib"
 SCALER_OUT = "scaler.joblib"
 
+# Load features
 df = pd.read_csv(FEATURES_OUT)
 print("Loaded", len(df), "sessions")
-# load scaler & model
-scaler = joblib.load(SCALER_OUT)
+
+# ✅ Load scaler & model (handle both old/new formats)
+scaler_blob = joblib.load(SCALER_OUT)
+if isinstance(scaler_blob, dict):
+    scaler = scaler_blob["scaler"]
+    feature_names = scaler_blob["features"]
+else:
+    scaler = scaler_blob
+    feature_names = getattr(scaler, "feature_names_in_", list(df.select_dtypes(include=[np.number]).columns))
+
 model = joblib.load(MODEL_OUT)
 
-# select numeric features only
+# Select numeric features
 X = df.select_dtypes(include=[np.number]).fillna(0)
 
-# ✅ Align columns with those seen by the scaler during training
-if hasattr(scaler, 'feature_names_in_'):
-    missing_cols = set(scaler.feature_names_in_) - set(X.columns)
-    extra_cols = set(X.columns) - set(scaler.feature_names_in_)
+# ✅ Align columns with training features
+X = X.reindex(columns=feature_names, fill_value=0)
 
-    # add missing cols with 0s
-    for c in missing_cols:
-        X[c] = 0
-    # drop unknown cols
-    X = X[[c for c in scaler.feature_names_in_]]
-else:
-    print("⚠️ scaler missing feature_names_in_ (old sklearn version). Assuming same columns.")
-
+# Scale
 X_scaled = scaler.transform(X)
 
-# anomaly scores (the lower, the more anomalous for sklearn IsolationForest)
-scores = model.decision_function(X_scaled)  # higher is normal, lower is outlier
-pred = model.predict(X_scaled)  # -1 = outlier, 1 = inlier
+# Predict anomalies
+scores = model.decision_function(X_scaled)  # higher = normal, lower = anomaly
+pred = model.predict(X_scaled)  # -1 = anomaly, 1 = normal
 
+# Add results to DataFrame
 df['anomaly_score'] = scores
 df['is_outlier'] = (pred == -1).astype(int)
 
-# basic counts
+# Print basic stats
 print(df['is_outlier'].value_counts())
+print(f"Suspicious rate: {(df['is_outlier'].mean() * 100):.2f}%")
 
-# Plot histogram of anomaly scores
+# 📊 Plot histogram of anomaly scores
 plt.figure(figsize=(8,4))
-plt.hist(scores, bins=100)
+plt.hist(scores, bins=100, color='steelblue', alpha=0.8)
 plt.title("Anomaly Score Distribution")
 plt.xlabel("IsolationForest decision_function score")
-plt.ylabel("count")
+plt.ylabel("Count")
+plt.tight_layout()
 plt.savefig("anomaly_score_hist.png")
 print("Saved anomaly_score_hist.png")
 
-# PCA 2D scatter
+# 🧭 PCA visualization
 pca = PCA(n_components=2, random_state=42)
 proj = pca.fit_transform(X_scaled)
 plt.figure(figsize=(8,6))
-plt.scatter(proj[:,0], proj[:,1], c=df['is_outlier'], cmap='coolwarm', s=6, alpha=0.6)
-plt.title("PCA scatter - outliers highlighted (red)")
+plt.scatter(proj[:,0], proj[:,1], c=df['is_outlier'], cmap='coolwarm', s=8, alpha=0.7)
+plt.title("PCA Projection — Outliers in Red")
+plt.xlabel("PC1")
+plt.ylabel("PC2")
+plt.tight_layout()
 plt.savefig("pca_outliers.png")
 print("Saved pca_outliers.png")
 
-# Show top 50 anomalies for manual inspection
+# Save top anomalies
 top_anom = df.sort_values('anomaly_score').head(50)
 top_anom.to_csv("top_anomalies.csv", index=False)
 print("Saved top_anomalies.csv")
