@@ -1,3 +1,4 @@
+
 # 🧠 Click Fraud Detection in Online Advertising (Data Orch)
 
 ### 🚀 AWS-Based Machine Learning Project
@@ -71,95 +72,106 @@ The goal is to build a system that:
                    | Lambda + CloudWatch    |
                    | Automated Detection    |
                    +------------------------+
+````
 
-📦 Project Files
-File	Description
-data_preprocess_glue.py	Script for AWS Glue ETL job.
-train_model_sagemaker.py	Script to train Isolation Forest model on SageMaker.
-lambda_invoke_endpoint.py	Lambda script to invoke model endpoint on new data.
-clickfraud_aws_check.py	Script to verify AWS service connections.
-app_streamlit.py	Optional GUI using Streamlit for visualization and demo.
-README.md	Project documentation.
-🧪 Steps to Run
-1️⃣ Upload Data
+---
 
-Upload your clickstream CSV files to an S3 bucket.
+## 📦 Project Files
 
-Example schema: timestamp, ip, user_agent, ad_id, clicks, impressions
+| File                        | Description                                              |
+| --------------------------- | -------------------------------------------------------- |
+| `data_preprocess_glue.py`   | Script for AWS Glue ETL job.                             |
+| `train_model_sagemaker.py`  | Script to train Isolation Forest model on SageMaker.     |
+| `lambda_invoke_endpoint.py` | Lambda script to invoke model endpoint on new data.      |
+| `clickfraud_aws_check.py`   | Script to verify AWS service connections.                |
+| `app_streamlit.py`          | Optional GUI using Streamlit for visualization and demo. |
+| `README.md`                 | Project documentation.                                   |
 
-2️⃣ Run AWS Glue Job
+---
+
+## 🧪 Steps to Run
+
+### 1️⃣ Upload Data
+
+* Upload your clickstream CSV files to an S3 bucket.
+* Example schema: `timestamp, ip, user_agent, ad_id, clicks, impressions`
+
+### 2️⃣ Run AWS Glue Job
+
+```bash
 python data_preprocess_glue.py
+```
 
+* Cleans and prepares data.
+* Outputs curated dataset for Athena queries.
 
-Cleans and prepares data.
+### 3️⃣ Train Model on SageMaker
 
-Outputs curated dataset for Athena queries.
-
-3️⃣ Train Model on SageMaker
+```bash
 python train_model_sagemaker.py
+```
 
+* Trains Isolation Forest using unsupervised learning.
+* Deploys a SageMaker endpoint.
 
-Trains Isolation Forest using unsupervised learning.
+### 4️⃣ Connect Lambda Function
 
-Deploys a SageMaker endpoint.
+* Trigger Lambda whenever new click logs are uploaded.
+* Lambda calls the SageMaker endpoint and logs results.
 
-4️⃣ Connect Lambda Function
+### 5️⃣ Monitor with CloudWatch
 
-Trigger Lambda whenever new click logs are uploaded.
+* Check logs for flagged click anomalies.
+* Visualize metrics like fraud ratio, latency, and trigger count.
 
-Lambda calls the SageMaker endpoint and logs results.
+---
 
-5️⃣ Monitor with CloudWatch
+## 🎥 Demo Workflow (for Presentation)
 
-Check logs for flagged click anomalies.
+1. Show dataset upload to S3.
+2. Run Glue job and view table in AWS Glue Catalog.
+3. Query cleaned data in Athena.
+4. Trigger Lambda to run prediction on sample input.
+5. View flagged frauds in CloudWatch Logs.
+6. (Optional) Display results in Streamlit dashboard.
 
-Visualize metrics like fraud ratio, latency, and trigger count.
+---
 
-🎥 Demo Workflow (for Presentation)
+## 📊 Results
 
-Show dataset upload to S3.
+* Model identifies **fraudulent clicks** with strong anomaly scores.
+* Workflow is **fully serverless**, reducing operational costs.
+* Real-time inference pipeline detects fraud on new events.
 
-Run Glue job and view table in AWS Glue Catalog.
+---
 
-Query cleaned data in Athena.
+## 🔒 Security and Cost Optimization
 
-Trigger Lambda to run prediction on sample input.
+* IAM Roles restrict each service’s access.
+* Services paused after demo to avoid credit usage.
+* Uses **AWS Free Tier**-eligible services only.
 
-View flagged frauds in CloudWatch Logs.
+---
 
-(Optional) Display results in Streamlit dashboard.
+## 👨‍💻 Author
 
-📊 Results
-
-Model identifies fraudulent clicks with strong anomaly scores.
-
-Workflow is fully serverless, reducing operational costs.
-
-Real-time inference pipeline detects fraud on new events.
-
-🔒 Security and Cost Optimization
-
-IAM Roles restrict each service’s access.
-
-Services paused after demo to avoid credit usage.
-
-Uses AWS Free Tier-eligible services only.
-
-👨‍💻 Author
-
-Anant Shrivastava
+**Anant Shrivastava**
 B.Tech Student | Cloud & AI Enthusiast
-Project: Data Orch – Click Fraud Detection
-University Demo Project (AWS-based)
+**Project:** Data Orch – Click Fraud Detection
+**University Demo Project (AWS-based)**
 
-🏁 Future Improvements
+---
 
-Integrate AWS Kinesis for real-time streaming click data.
+## 🏁 Future Improvements
 
-Add CloudFront + API Gateway for interactive dashboard.
+* Integrate **AWS Kinesis** for real-time streaming click data.
+* Add **CloudFront + API Gateway** for interactive dashboard.
+* Expand dataset and switch to **semi-supervised deep learning model**.
 
-Expand dataset and switch to semi-supervised deep learning model.
+---
 
-🧩 Keywords
+## 🧩 Keywords
 
-AWS Glue Amazon Athena SageMaker Lambda CloudWatch Click Fraud Detection Anomaly Detection Data Pipeline Machine Learning Online Ads
+`AWS Glue` `Amazon Athena` `SageMaker` `Lambda` `CloudWatch` `Click Fraud Detection` `Anomaly Detection` `Data Pipeline` `Machine Learning` `Online Ads`
+
+```
