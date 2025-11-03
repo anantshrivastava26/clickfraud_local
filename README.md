@@ -174,4 +174,3 @@ B.Tech Student | Cloud & AI Enthusiast
 
 `AWS Glue` `Amazon Athena` `SageMaker` `Lambda` `CloudWatch` `Click Fraud Detection` `Anomaly Detection` `Data Pipeline` `Machine Learning` `Online Ads`
 
-```
