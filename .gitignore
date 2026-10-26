@@ -1,0 +1,54 @@
+# Python environments, caches, and local tooling
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node/Vite dependencies and generated output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# SSH keys and certificates (EC2 key pairs must never be committed)
+*.pem
+*.key
+*.ppk
+id_rsa*
+id_ed25519*
+
+# Vite/Node local state
+frontend/.vite/
+*.local
+npm-debug.log*
+
+# Docker local overrides
+docker-compose.override.yml
+
+# Logs and local runtime output
+*.log
+*.pid
+
+# Raw or locally generated datasets
+backend/data/raw/
+backend/data/*.zip
+backend/data/*.gz
+backend/data/*.jsonl
+backend/data/*.parquet
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
