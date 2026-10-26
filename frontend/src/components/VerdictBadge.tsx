@@ -2,6 +2,8 @@ import { VERDICT_COLOR, VERDICT_LABEL } from "../format";
 import type { Verdict } from "../types";
 import { BotGlyph, HumanGlyph, ReviewGlyph } from "./Icons";
 
+// A verdict is always shown as icon + colour + text, never colour alone, so it stays readable for
+// colour-blind users and in grayscale.
 const GLYPH = { bot: BotGlyph, review: ReviewGlyph, human: HumanGlyph };
 
 export function VerdictGlyph({ verdict, size }: { verdict: Verdict; size?: number }) {
@@ -18,6 +20,8 @@ export function VerdictBadge({ verdict }: { verdict: Verdict }) {
   );
 }
 
+// Risk as a small bar plus the rounded number. The bar's width is the 0-100 risk and its colour is
+// the verdict's.
 export function RiskCell({ risk, verdict }: { risk: number; verdict: Verdict }) {
   return (
     <span className="risk">

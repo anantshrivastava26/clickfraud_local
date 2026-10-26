@@ -16,6 +16,11 @@ interface Props {
   controls?: boolean;
 }
 
+// Filterable, sortable, paginated table. All of it happens in the browser over the rows the API
+// returned (at most 5,000), so changing a filter or sort never triggers a request. Pass
+// controls={false} to hide the filter and search bar (the Overview page uses that for its fixed
+// top-25 list). The 'Bot' filter is preselected when the data contains any bots, so the most
+// important rows are in view immediately.
 export function ResultsTable({ rows, idLabel, selectedId, onSelect, pageSize = 50, controls = true }: Props) {
   const [filter, setFilter] = useState<Filter>(rows.some((r) => r.verdict === "bot") ? "bot" : "all");
   const [query, setQuery] = useState("");
@@ -37,10 +42,14 @@ export function ResultsTable({ rows, idLabel, selectedId, onSelect, pageSize = 5
     return out;
   }, [rows, filter, query, sort]);
 
+  // Pagination. The current page is clamped, so a filter that shrinks the list never leaves the
+  // user on a page that no longer exists.
   const pages = Math.max(1, Math.ceil(visible.length / pageSize));
   const current = Math.min(page, pages - 1);
   const slice = visible.slice(current * pageSize, (current + 1) * pageSize);
 
+  // Clicking the active column flips its direction; clicking another column sorts it descending
+  // (highest risk or volume first). Either way, return to the first page.
   const toggleSort = (key: SortKey) => {
     setSort((s) => (s.key === key ? { key, dir: s.dir === "desc" ? "asc" : "desc" } : { key, dir: "desc" }));
     setPage(0);

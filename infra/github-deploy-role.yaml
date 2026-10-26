@@ -5,7 +5,13 @@ Description: >
   role (OIDC, trusted only for this repo's production environment).
   Deployed once by hand; see deploy/ec2/setup-cicd.sh.
 
+# Prerequisite: the AWS account must already have the GitHub Actions OIDC identity provider
+# (token.actions.githubusercontent.com). DeployRole's trust policy refers to it, but this template
+# does not create it.
 Parameters:
+  # The defaults are this project's values. GitHubRepo and GitHubEnvironment are baked into the
+  # deploy role's trust condition, so only that repository's `production` environment can assume it;
+  # InstanceId limits which host the role may send commands to.
   GitHubRepo:
     Type: String
     Default: anantshrivastava26/clickfraud_local
@@ -18,6 +24,8 @@ Parameters:
     Description: The EC2 host the deploy role may send SSM commands to.
 
 Resources:
+  # One private ECR repository per image. Scan-on-push flags known vulnerabilities, and the
+  # lifecycle rule expires everything beyond the newest 10 images so storage does not grow forever.
   BackendRepository:
     Type: AWS::ECR::Repository
     Properties:
@@ -36,6 +44,9 @@ Resources:
         LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep last 10","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":10},"action":{"type":"expire"}}]}'
       Tags: [{ Key: Project, Value: clickfraud-monitor }]
 
+  # Role for the EC2 host itself. AmazonSSMManagedInstanceCore lets Systems Manager run commands on
+  # it (this is how deploys happen, so no SSH is needed); the ECR read-only policy lets it pull
+  # images.
   InstanceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -57,6 +68,10 @@ Resources:
       InstanceProfileName: clickfraud-monitor-ec2-profile
       Roles: [!Ref InstanceRole]
 
+  # Role that GitHub Actions assumes through OIDC: short-lived credentials, no stored keys. The
+  # trust policy requires the right audience (sts.amazonaws.com) and a subject equal to
+  # repo:<owner/repo>:environment:production, so other repositories and other environments are
+  # refused.
   DeployRole:
     Type: AWS::IAM::Role
     Properties:
@@ -73,12 +88,16 @@ Resources:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
                 token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepo}:environment:${GitHubEnvironment}
+      # Least privilege: push images to the two repositories, and run shell commands on the one
+      # instance.
       Policies:
         - PolicyName: clickfraud-monitor-deploy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
+                # `docker login` to ECR needs this account-wide call; AWS does not let it be scoped
+                # to a repository.
                 Action: ecr:GetAuthorizationToken
                 Resource: "*"
               - Effect: Allow
@@ -94,17 +113,20 @@ Resources:
                   - !GetAtt BackendRepository.Arn
                   - !GetAtt FrontendRepository.Arn
               - Effect: Allow
+                # Allowed only on this instance and only with the stock AWS-RunShellScript document.
                 Action: ssm:SendCommand
                 Resource:
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${InstanceId}
                   - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
               - Effect: Allow
                 Action:
+                  # Read-only polling of the deploy command's status.
                   - ssm:GetCommandInvocation
                   - ssm:ListCommandInvocations
                 Resource: "*"
       Tags: [{ Key: Project, Value: clickfraud-monitor }]
 
+# DeployRoleArn and InstanceProfileName are read by deploy/ec2/setup-cicd.sh.
 Outputs:
   DeployRoleArn:
     Value: !GetAtt DeployRole.Arn

@@ -13,11 +13,17 @@ const FILL: Record<Verdict, string> = {
   review: "var(--review)",
   human: "var(--chart-human)",
 };
+// Bottom-to-top stacking order: the human majority at the base, so the small bot slice sits on top
+// where it is easy to see.
 const STACK: Verdict[] = ["human", "review", "bot"];
+// Chart margins in px, reserved for axis labels and the marker captions.
 const M = { top: 22, right: 8, bottom: 40, left: 44 };
 
 /** Session count by decision score, log-scaled so the small bot tail stays visible. */
 export function ScoreHistogram({ bins, reviewThreshold, height = 240 }: Props) {
+  // Hand-drawn SVG instead of a charting library: one small chart does not justify a dependency,
+  // and it gives exact control over the log scale, threshold markers and tooltip. The width follows
+  // the container (ResizeObserver), so the chart is crisp at any size.
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
   const [hover, setHover] = useState<number | null>(null);
@@ -30,6 +36,9 @@ export function ScoreHistogram({ bins, reviewThreshold, height = 240 }: Props) {
     return () => ro.disconnect();
   }, []);
 
+  // Layout maths. Counts are plotted as log10(count + 1): empty buckets sit at zero, and the tiny
+  // bot buckets stay visible next to buckets holding tens of thousands of sessions. `decades` is
+  // how many powers of ten the y-axis spans.
   const totals = bins.map((b) => b.bot + b.review + b.human);
   const maxTotal = Math.max(1, ...totals);
   const decades = Math.max(1, Math.ceil(Math.log10(maxTotal + 1)));
@@ -42,16 +51,23 @@ export function ScoreHistogram({ bins, reviewThreshold, height = 240 }: Props) {
   const bw = innerW / bins.length;
   const gap = bw > 6 ? 2 : 1;
 
+  // y gridlines at powers of ten; x ticks at round numbers.
   const ticks = Array.from({ length: decades + 1 }, (_, i) => 10 ** i);
   const xTicks = niceTicks(x0, x1, width < 520 ? 4 : 7);
+  // Vertical guides for the model's bot cut-off (score 0) and the review threshold, drawn only when
+  // they fall inside the plotted range.
   const markers = [
     { x: 0, label: "Bot cut-off" },
     { x: reviewThreshold, label: "Review" },
   ].filter((m) => m.x >= x0 && m.x <= x1);
 
+  // Tooltip: follow the hovered bucket but stay within the chart's horizontal bounds.
   const hb = hover !== null ? bins[hover] : null;
   const tipLeft = hover !== null ? Math.min(Math.max(sx(bins[hover].x0) + bw / 2 - 90, 0), width - 190) : 0;
 
+  // Drawing order: gridlines, the stacked bars (one rect per verdict, each taking its share of the
+  // bucket's log-scaled height), axes, threshold markers, and finally transparent full-height rects
+  // that capture hover for each bucket, so even very thin bars are easy to point at.
   return (
     <div className="chart" ref={ref}>
       <svg width={width} height={height} role="img" aria-label="Histogram of decision scores by verdict">
@@ -162,6 +178,8 @@ export function HistogramLegend() {
   );
 }
 
+// Pick round tick positions (1, 2, 2.5 or 5 times a power of ten) giving about `count` ticks across
+// [lo, hi]. Values are rounded to 6 decimals to hide floating-point noise.
 function niceTicks(lo: number, hi: number, count: number): number[] {
   const raw = (hi - lo) / count;
   const mag = 10 ** Math.floor(Math.log10(raw));

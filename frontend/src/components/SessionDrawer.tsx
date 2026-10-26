@@ -11,14 +11,22 @@ interface Props {
   onClose: () => void;
 }
 
+// Slide-in detail panel for one row: its risk on the 0-100 scale, the signals behind the score, and
+// every feature value beside the human and bot training medians. Closes on Escape, on a click on
+// the backdrop, or with the close button.
 export function SessionDrawer({ row, model, idLabel, onClose }: Props) {
+  // Escape closes the drawer. The listener is removed again when the drawer unmounts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // The risk bar is drawn with the same bands the backend uses, so its colours always line up with
+  // the verdicts: 0 to review = human, review to bot = review, bot to 100 = bot.
   const { bot, review } = model.model.risk_bands;
+  // Training medians by feature name, for the comparison columns. Features that triggered a signal
+  // are shown in bold in the table.
   const typical = Object.fromEntries(model.profile.map((p) => [p.feature, p]));
   const signalFeatures = new Set(row.signals.map((s) => s.feature));
 

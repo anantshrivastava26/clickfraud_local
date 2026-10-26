@@ -6,6 +6,9 @@ import { OverviewPage } from "./pages/OverviewPage";
 import { ScanPage } from "./pages/ScanPage";
 import type { ModelSummary, ScanResult } from "./types";
 
+// State shared by every page. It lives above the router so it survives navigation: the model
+// summary is fetched once, and the latest scan result is still there when the user comes back to
+// the Scan page from the Overview.
 interface AppState {
   model: ModelSummary | null;
   modelError: string | null;
@@ -14,14 +17,20 @@ interface AppState {
 }
 
 const Ctx = createContext<AppState | null>(null);
+// Pages read the shared state through this hook. The non-null assertion is safe because every page
+// is rendered inside <Ctx.Provider>.
 export const useApp = () => useContext(Ctx)!;
 
 export function App() {
   const [model, setModel] = useState<ModelSummary | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
   const [scan, setScan] = useState<ScanResult | null>(null);
+  // null means 'not checked yet', so the sidebar shows 'Checking API…' rather than a false
+  // 'unreachable'.
   const [apiUp, setApiUp] = useState<boolean | null>(null);
 
+  // On mount: load the model baseline once, and poll /api/health every 30 s to drive the status dot
+  // in the sidebar. The interval is cleared on unmount.
   useEffect(() => {
     getModel().then(setModel, (e: Error) => setModelError(e.message));
     const ping = () => getHealth().then(() => setApiUp(true), () => setApiUp(false));
@@ -30,6 +39,8 @@ export function App() {
     return () => clearInterval(t);
   }, []);
 
+  // Layout: sidebar navigation plus the routed page. / is the training baseline, /scan is the
+  // upload page, and any other URL redirects to /.
   return (
     <Ctx.Provider value={{ model, modelError, scan, setScan }}>
       <div className="shell">

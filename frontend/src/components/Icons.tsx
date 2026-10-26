@@ -1,5 +1,8 @@
 import type { SVGProps } from "react";
 
+// A small inline-SVG icon set: 16x16 grid, 1.5px strokes, drawn in currentColor so icons inherit
+// the text colour. Inline SVG avoids an icon-font dependency and extra requests. Icons are
+// decorative (aria-hidden); the text beside them carries the meaning.
 type P = SVGProps<SVGSVGElement> & { size?: number };
 
 function Svg({ size = 16, children, ...rest }: P) {
@@ -77,6 +80,8 @@ export const Sort = ({ dir, ...p }: P & { dir?: "asc" | "desc" | null }) => (
 );
 
 /* Verdict glyphs: shape carries the meaning alongside colour. */
+// Verdict glyphs. Each verdict has its own shape, used together with colour and a text label (see
+// VerdictBadge).
 export const BotGlyph = (p: P) => (
   <Svg {...p} size={p.size ?? 12} strokeWidth={1.8}>
     <path d="M5.2 1.5h5.6l3.7 3.7v5.6l-3.7 3.7H5.2l-3.7-3.7V5.2z" fill="currentColor" stroke="none" />

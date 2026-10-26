@@ -5,6 +5,9 @@ import { VerdictGlyph } from "./VerdictBadge";
 const ORDER: Verdict[] = ["bot", "review", "human"];
 const FILL: Record<Verdict, string> = { bot: "var(--bot)", review: "var(--review)", human: "var(--chart-human)" };
 
+// One stacked bar showing the bot / review / human split, with counts and percentages in the
+// legend. Segments are sized with flex-grow = count, so no percentage maths is needed, and verdicts
+// with no rows are left out.
 export function VerdictMeter({ counts, unit }: { counts: Counts; unit: string }) {
   const total = counts.sessions;
   return (

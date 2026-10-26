@@ -1,7 +1,13 @@
+# Web API
 fastapi==0.115.12
 uvicorn[standard]==0.34.2
+# Required by FastAPI to read the multipart file upload (POST /api/scan).
 python-multipart==0.0.20
+# Data and model
 pandas==2.3.1
 numpy==2.3.1
+# Keep equal to sklearn_version in artifacts/model_meta.json: the joblib model files are sensitive
+# to the scikit-learn version that wrote them.
 scikit-learn==1.7.1
 joblib==1.5.1
+# CI also installs httpx (needed by FastAPI's TestClient); it is not required at run time.

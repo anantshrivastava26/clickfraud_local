@@ -1,8 +1,13 @@
+# Production-like local stack: `docker compose up --build`, then open http://localhost:8080. Only
+# the frontend publishes a port; the API is reachable solely through nginx's /api proxy.
 services:
   backend:
     build: ./backend
     environment:
+      # Requests arrive same-origin through the nginx proxy, so CORS is not really exercised here.
       ALLOWED_ORIGINS: "*"
+    # The slim Python image has no curl, so the probe uses the standard library. The frontend waits
+    # for it to pass.
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 10s
@@ -11,9 +16,12 @@ services:
   frontend:
     build: ./frontend
     environment:
+      # nginx proxies /api/ to this address; 'backend' is the service name on the compose network.
       BACKEND_URL: http://backend:8000
     ports:
       - "8080:80"
+    # Start the frontend only once the API is healthy, so the UI never loads against a backend that
+    # is still starting.
     depends_on:
       backend:
         condition: service_healthy

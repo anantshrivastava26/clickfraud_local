@@ -9,6 +9,8 @@ import { VerdictMeter } from "../components/VerdictMeter";
 import { fmtCompact, fmtDate, fmtInt, fmtNum, fmtPct } from "../format";
 import type { ResultRow } from "../types";
 
+// 'Model baseline' page: what the model learned from the training data, read from GET /api/model
+// through the shared app state. Uploaded files are scored against this baseline on the Scan page.
 export function OverviewPage() {
   const { model, modelError } = useApp();
   const [selected, setSelected] = useState<ResultRow | null>(null);
@@ -176,6 +178,7 @@ export function OverviewPage() {
   );
 }
 
+// Summary tile: label, large value, footnote. Exported because the Scan page reuses it.
 export function Kpi({ label, value, foot, icon }: { label: string; value: string; foot?: string; icon?: React.ReactNode }) {
   return (
     <div className="kpi">
@@ -189,6 +192,7 @@ export function Kpi({ label, value, foot, icon }: { label: string; value: string
   );
 }
 
+// Placeholder blocks shown while the model summary is loading.
 function Loading() {
   return (
     <div className="stack">

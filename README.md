@@ -4,6 +4,8 @@ Unsupervised bot-traffic detection for ad click logs. An Isolation Forest is tra
 features built from the [Avazu CTR dataset](https://www.kaggle.com/c/avazu-ctr-prediction). A FastAPI service scores
 uploaded CSVs against it, and a React dashboard shows the trained baseline and the scan results.
 
+See [architecture.md](architecture.md) for the design, data flow and trade-offs.
+
 ```
 frontend/  React + TypeScript (Vite), served by nginx in production
 backend/   FastAPI scoring API, feature engineering, training script, model artifacts

@@ -3,14 +3,20 @@
     "target": "ES2020",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
+    // Import resolution that matches how Vite bundles.
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
+    // Strict checking plus errors for unused variables. `npm run build` runs `tsc -b` first, so
+    // these also fail CI.
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "skipLibCheck": true,
+    // Each file must be compilable on its own, which is how Vite's transpiler (esbuild) works.
     "isolatedModules": true,
+    // tsc only type-checks; Vite produces the actual output.
     "noEmit": true,
+    // Typings for import.meta.env (api.ts reads VITE_API_URL from it).
     "types": ["vite/client"]
   },
   "include": ["src"]

@@ -1,3 +1,7 @@
+/* Styles for the whole UI in one file, in this order: design tokens (light and dark), base */
+/* elements, app shell, primitives, tables, charts, upload, drawer, responsive rules. Colours */
+/* are only ever used through the variables below, so dark mode needs nothing but the overrides */
+/* in the media query. */
 :root {
   color-scheme: light;
   --bg: #f6f6f4;
@@ -35,6 +39,8 @@
   --mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+/* Dark theme follows the OS setting unless <html data-theme="light"> forces light. Only the */
+/* tokens that differ are overridden. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
@@ -79,6 +85,7 @@ button, input { font: inherit; color: inherit; }
 a { color: var(--link); text-decoration: none; }
 a:hover { text-decoration: underline; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+/* Tabular figures keep digits aligned in tables and KPI tiles. */
 .num { font-variant-numeric: tabular-nums; }
 .mono { font-family: var(--mono); font-size: 12px; }
 .muted { color: var(--text-3); }
@@ -206,6 +213,8 @@ table.data tbody tr.selected td { background: var(--surface-hover); }
 
 /* ---------------------------------------------------------------- charts */
 
+/* The chart wrapper is the positioning context for the absolutely placed tooltip (see */
+/* ScoreHistogram.tsx). */
 .chart { position: relative; }
 .chart svg { display: block; overflow: visible; }
 .chart text { fill: var(--text-3); font-size: 11px; font-family: var(--font); font-variant-numeric: tabular-nums; }

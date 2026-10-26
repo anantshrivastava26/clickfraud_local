@@ -1,3 +1,5 @@
+# Every push and pull request runs the backend smoke test and the frontend build. Pushes to main
+# also deploy to EC2 (the deploy job at the bottom).
 name: CI/CD
 
 on:
@@ -6,10 +8,14 @@ on:
   pull_request:
   workflow_dispatch:
 
+# One run per branch or PR. A newer push to a pull request cancels its older run, but runs on main
+# are never cancelled.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Read-only access to the repository by default; the deploy job requests the extra permission it
+# needs (id-token) itself.
 permissions:
   contents: read
 
@@ -27,7 +33,13 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: backend/requirements.txt
+      # httpx is only needed by FastAPI's TestClient, so it is installed here and not in
+      # requirements.txt.
       - run: pip install -r requirements.txt httpx
+      # There is no separate test suite. This drives the real app end to end in-process (the `with`
+      # block runs startup, so the model must load): health, the model summary, a scan of the demo
+      # click log that must flag exactly 6 bots (see backend/make_samples.py), and a malformed file
+      # that must be rejected with 422.
       - name: Smoke test API
         run: |
           python - <<'EOF'
@@ -64,6 +76,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --no-audit --no-fund
+      # `npm run build` is a TypeScript type-check followed by the Vite build, so type errors fail
+      # CI.
       - run: npm run build
 
   deploy:
@@ -100,6 +114,8 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      # Images are tagged with the commit SHA, so every rollout is traceable and can be rolled back,
+      # plus :latest. The GitHub Actions cache speeds up rebuilds.
       - name: Build and push backend
         uses: docker/build-push-action@v6
         with:
@@ -122,6 +138,9 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
+      # Deploys by running deploy/ec2/run.sh on the instance through SSM Run Command: no SSH and no
+      # open port 22. The first command exports the image names and the second is the script itself,
+      # sent as the command text, so run.sh pulls exactly the images pushed above.
       - name: Roll out on EC2 via SSM
         env:
           BACKEND_IMAGE: ${{ steps.ecr.outputs.registry }}/clickfraud-monitor/backend:${{ github.sha }}
@@ -138,6 +157,7 @@ jobs:
             --parameters "$params" \
             --query Command.CommandId --output text)
           echo "SSM command $cmd"
+          # Poll up to 60 x 5 s = 5 minutes for the command to finish.
           for _ in $(seq 1 60); do
             status=$(aws ssm get-command-invocation --command-id "$cmd" --instance-id "$EC2_INSTANCE_ID" \
               --query Status --output text 2>/dev/null || echo Pending)
@@ -146,8 +166,11 @@ jobs:
           aws ssm get-command-invocation --command-id "$cmd" --instance-id "$EC2_INSTANCE_ID" \
             --query '[StandardOutputContent, StandardErrorContent]' --output text
           echo "Status: $status"
+          # Fail the job unless the rollout command succeeded.
           [ "$status" = "Success" ]
 
+      # Final check against the public URL: the API reports the model loaded, the SPA fallback
+      # serves /scan, and the demo scan still flags exactly 6 bots.
       - name: Smoke test live site
         env:
           APP_URL: ${{ vars.APP_URL }}

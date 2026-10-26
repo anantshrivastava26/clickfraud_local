@@ -1,3 +1,4 @@
+# Keep local virtual environments and bytecode out of the build context.
 .venv
 __pycache__
 *.pyc

@@ -1,18 +1,31 @@
+# Rendered at container start. ${PORT} and ${BACKEND_URL} come from the environment; nginx's own
+# $variables such as $uri are left alone.
 server {
     listen ${PORT};
     root /usr/share/nginx/html;
+    # Uploads pass through this proxy. Keep it at least as large as the backend's MAX_UPLOAD_MB
+    # (50), otherwise nginx answers 413 first with a less helpful message.
     client_max_body_size 50m;
 
+    # The API: forwarded unchanged to the FastAPI service. The /api prefix is part of its routes,
+    # which is why BACKEND_URL has no path.
     location /api/ {
         proxy_pass ${BACKEND_URL};
+        # Send the host name during the TLS handshake (SNI). Needed when BACKEND_URL is an https://
+        # host on a managed platform.
         proxy_ssl_server_name on;
+        # Scanning a large file can take a while; wait up to two minutes for the response.
         proxy_read_timeout 120s;
     }
 
+    # Vite puts a content hash in the names of files under /assets, so browsers can safely cache
+    # them for a year.
     location /assets/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
     }
 
+    # Single-page app: any other path (for example a refreshed /scan) falls back to index.html so
+    # React Router can handle it.
     location / {
         try_files $uri /index.html;
     }
