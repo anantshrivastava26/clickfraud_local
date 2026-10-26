@@ -1,4 +1,26 @@
 # app_streamlit.py
+"""
+Streamlit dashboard: the front-end of the demo.
+
+Run:  streamlit run app_streamlit.py     (from the repo root; paths are relative)
+
+Sections, top to bottom
+-----------------------
+  1. Headline metrics        re-scores every training session with the saved model
+  2. Human vs Bot simulator  hand-built feature vectors pushed through the model
+  3. Session explorer        filterable table of the scored training sessions
+  4. Batch upload            score your own CSV of session features
+  5. Score histogram + PCA   the same charts as eval_and_visualize.py
+  6. Live feed               tails scored_sessions.jsonl, written by receiver_fastapi.py
+
+Data flow: this app only READS files (scaler.joblib, isoforest_model.joblib,
+session_features.csv, scored_sessions.jsonl). It never talks to the receiver over HTTP,
+so the dashboard still works with the receiver stopped; the live feed just goes quiet.
+
+Streamlit re-executes this whole script on every interaction AND on every auto-refresh
+tick (section 6), so anything expensive at module level is repeated. Only the model/data
+loading is cached (st.cache_resource); the scoring and PCA below are recomputed each time.
+"""
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -20,11 +42,15 @@ st.set_page_config(page_title="Click Fraud Detection Dashboard", page_icon="🚨
 # -----------------------------
 # LOAD MODEL + DATA
 # -----------------------------
+# cache_resource keeps the unpickled model/scaler/DataFrame in memory across reruns
+# instead of reading ~50k CSV rows and two joblib files on every click.
 @st.cache_resource
 def load_model_and_data():
     """Load scaler, model, and dataset"""
     scaler_data = joblib.load(SCALER_OUT)
 
+    # Same two scaler.joblib formats as the other scripts: the current dict (scaler +
+    # trained feature list) or a legacy bare scaler, whose features we have to guess.
     if isinstance(scaler_data, dict):
         scaler = scaler_data["scaler"]
         feature_names = scaler_data["features"]
@@ -50,14 +76,16 @@ st.write("Unsupervised anomaly detection using IsolationForest on Avazu-style se
 # -----------------------------
 # PREPROCESS DATA
 # -----------------------------
+# Same recipe as eval_and_visualize.py: keep the trained columns, in trained order, then
+# scale and score. `df` is the cached object, so these columns are re-assigned each rerun.
 X = df.select_dtypes(include=[np.number]).fillna(0)
 if feature_names is not None:
     X = X.reindex(columns=feature_names, fill_value=0)
 
 X_scaled = scaler.transform(X)
-pred = model.predict(X_scaled)
+pred = model.predict(X_scaled)                           # -1 = outlier, 1 = normal
 df["is_outlier"] = (pred == -1).astype(int)
-df["anomaly_score"] = model.decision_function(X_scaled)
+df["anomaly_score"] = model.decision_function(X_scaled)  # higher = more normal
 
 # -----------------------------
 # METRICS
@@ -66,6 +94,9 @@ colA, colB, colC = st.columns(3)
 colA.metric("Total sessions", len(df))
 colB.metric("Suspicious sessions", int(df["is_outlier"].sum()))
 
+# "Fraud probability" = 1 - min-max-scaled anomaly score: the most anomalous session in
+# the table gets 1.0, the most normal 0.0. It is a RELATIVE ranking inside this table,
+# not a calibrated probability, and it shifts whenever the table changes.
 score_scaler = MinMaxScaler(feature_range=(0, 1))
 df["fraud_probability"] = 1 - score_scaler.fit_transform(df[["anomaly_score"]])
 colC.metric("Avg Fraud Probability", f"{df['fraud_probability'].mean():.2f}")
@@ -82,10 +113,15 @@ def preprocess_input(sample_dict):
     """Ensure columns match scaler training features"""
     x = pd.DataFrame([sample_dict])
     if feature_names is not None:
+        # Drops any key the model was not trained on and zero-fills any it expects.
         x = x.reindex(columns=feature_names, fill_value=0)
     return x
 
 
+# The two buttons below score hard-coded example sessions: a "typical" one and an
+# obviously automated one. They show what the model reacts to, independent of the live
+# receiver. (Only the volume / ratio / breadth fields matter; the timing fields are
+# discarded by preprocess_input because the model was not trained on them.)
 with col1:
     st.markdown("### Human-like Session")
     if st.button("👆 Simulate Human Click"):
@@ -123,6 +159,7 @@ with col1:
 with col2:
     st.markdown("### Bot-like Session")
     if st.button("🤖 Simulate Bot Click"):
+        # 90% click rate, 20 sites / 10 apps in one minute, 1 s between clicks, 3 a.m.
         bot = {
             "impressions": 50,
             "clicks": 45,
@@ -166,6 +203,7 @@ elif filter_choice == "Normal only":
 else:
     filtered = df
 
+# Only the first 50 rows are rendered: drawing all ~50k would make the page sluggish.
 st.dataframe(filtered.head(50))
 
 # -----------------------------
@@ -176,11 +214,15 @@ uploaded = st.file_uploader("Choose CSV file", type="csv")
 
 if uploaded:
     udf = pd.read_csv(uploaded)
+    # Columns the model was not trained on are dropped, missing ones become 0, so the
+    # upload only needs to contain (a superset of) the trained features.
     udf = udf.reindex(columns=feature_names, fill_value=0)
     u_scaled = scaler.transform(udf)
     preds = model.predict(u_scaled)
     udf["is_outlier"] = (preds == -1).astype(int)
     udf["anomaly_score"] = model.decision_function(u_scaled)
+    # NOTE: this RE-FITS the min-max scaler on the uploaded batch, so these values are
+    # relative to this upload only and not comparable with the main table above.
     udf["fraud_probability"] = 1 - score_scaler.fit_transform(udf[["anomaly_score"]])
     st.write(udf.head())
     st.metric("Suspicious count", int(udf["is_outlier"].sum()))
@@ -215,6 +257,9 @@ st.pyplot(fig, use_container_width=False)
 # -----------------------------
 st.subheader("🧠 PCA Visualization of Sessions")
 
+# 2-D projection for display only (the model itself does not use PCA). It is refitted on
+# ~50k rows on every rerun, including each auto-refresh tick below; wrap it in
+# st.cache_data if the page ever feels slow.
 pca = PCA(n_components=2, random_state=42)
 X_pca = pca.fit_transform(X_scaled)
 
@@ -234,6 +279,9 @@ st.pyplot(fig2, use_container_width=False)
 # -----------------------------
 # LIVE FEED: REAL-TIME DETECTIONS
 # -----------------------------
+# NOTE: `from datetime import datetime` below rebinds the name `datetime` from the
+# module (imported at the top, used by the simulator above) to the class. That is safe
+# only because the simulator code runs earlier in the script; keep it that way or alias one.
 import json, os, streamlit_autorefresh
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh  # ✅ add this at top of file too (pip install streamlit-autorefresh)
@@ -241,11 +289,16 @@ from streamlit_autorefresh import st_autorefresh  # ✅ add this at top of file 
 st.subheader("🚨 Live Fraud Detection Feed")
 
 # Refresh every N seconds (non-blocking)
+# st_autorefresh is a tiny browser-side timer that triggers a normal Streamlit rerun
+# (so the whole script runs again - see the module docstring). A sleep loop would block
+# the script and freeze the UI instead.
 refresh_interval = st.slider("Auto-refresh interval (seconds)", 2, 15, 5)
 st_autorefresh(interval=refresh_interval * 1000, key="fraud_feed_refresh")
 
 def read_latest_detections(limit=30):
     """Read and parse the latest scored sessions"""
+    # scored_sessions.jsonl is appended to by receiver_fastapi.py (one JSON object per
+    # line) and is the only coupling between the two programs.
     if not os.path.exists("scored_sessions.jsonl"):
         return pd.DataFrame()
 
@@ -255,6 +308,8 @@ def read_latest_detections(limit=30):
             try:
                 rows.append(json.loads(line))
             except Exception:
+                # The receiver may be mid-write, leaving a partial last line; skip it
+                # rather than crash the whole dashboard.
                 continue
 
     if not rows:
@@ -262,6 +317,8 @@ def read_latest_detections(limit=30):
 
     df_live = pd.DataFrame(rows)
     df_live["timestamp"] = pd.to_datetime(df_live["timestamp"], errors="coerce")
+    # Newest first, capped at `limit`. The whole file is re-read every refresh, which is
+    # fine for a demo log but would need tailing/rotation for a long-running one.
     df_live = df_live.sort_values("timestamp", ascending=False).head(limit)
     return df_live
 
@@ -290,6 +347,7 @@ if not live_df.empty:
     )
 
     # Mini trend chart
+    # Bar chart of how many of the recent verdicts were Normal vs Suspicious.
     trend = live_df.groupby("is_outlier")["score"].count().rename({0: "Normal", 1: "Suspicious"})
     st.bar_chart(trend)
 
