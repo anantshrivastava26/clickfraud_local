@@ -1,0 +1,27 @@
+{
+  "trained_at": "2026-10-26T07:28:45+00:00",
+  "sklearn_version": "1.7.1",
+  "training_rows": 51052,
+  "features": [
+    "impressions",
+    "clicks",
+    "click_rate",
+    "unique_sites",
+    "unique_apps",
+    "device_type",
+    "device_conn_type",
+    "c14_nunique",
+    "c15_nunique",
+    "c16_nunique",
+    "c17_nunique",
+    "c18_nunique",
+    "c19_nunique",
+    "c20_nunique",
+    "c21_nunique"
+  ],
+  "dropped_constant_features": [],
+  "n_estimators": 200,
+  "contamination": 0.02,
+  "random_state": 42,
+  "source": "session_features.csv"
+}
