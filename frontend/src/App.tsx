@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { getHealth, getModel } from "./api";
 import { Layers, Pulse, Scan } from "./components/Icons";
-import { fmtDate } from "./format";
 import { OverviewPage } from "./pages/OverviewPage";
 import { ScanPage } from "./pages/ScanPage";
 import type { ModelSummary, ScanResult } from "./types";
@@ -56,9 +55,6 @@ export function App() {
             <div className="status-line">
               <i className={`dot ${apiUp === null ? "" : apiUp ? "ok" : "down"}`} />
               {apiUp === null ? "Checking API…" : apiUp ? "API operational" : "API unreachable"}
-            </div>
-            <div className="muted">
-              {model ? `Model trained ${fmtDate(model.model.trained_at)}` : " "}
             </div>
           </div>
         </aside>
