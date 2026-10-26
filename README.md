@@ -92,7 +92,8 @@ resource is tagged `Project=clickfraud-monitor`.
 | `deploy/ec2/user-data.sh`    | Instance bootstrap: Docker and 2 GB swap                                     |
 | `deploy/ec2/run.sh`          | Starts the stack on the host. Pulls ECR images if `BACKEND_IMAGE`/`FRONTEND_IMAGE` are set, otherwise builds from source |
 | `deploy/ec2/deploy.sh`       | Manual deploy from your machine over SSH (`EC2_HOST=3.6.185.10 deploy/ec2/deploy.sh`) |
-| `deploy/ec2/setup-cicd.sh`   | One-time AWS and GitHub setup for continuous deployment (see below)            |
+| `deploy/ec2/setup-cicd.sh`   | One-time bootstrap for continuous deployment (see below)                      |
+| `infra/github-deploy-role.yaml` | CloudFormation: ECR repos, EC2 instance role, GitHub OIDC deploy role       |
 
 ### CI/CD
 
@@ -100,13 +101,24 @@ resource is tagged `Project=clickfraud-monitor`.
 
 1. **Backend tests**: install dependencies and smoke-test `/api/health`, `/api/model` and `/api/scan`.
 2. **Frontend build**: `npm ci` and type-check and build.
-3. **Deploy** (pushes to `main` only): assume an AWS role via GitHub OIDC (no stored AWS keys), build both images and
-   push them to ECR tagged with the commit SHA, roll them out on the instance with SSM Run Command (no inbound SSH
-   needed), then health-check the live URL.
+3. **Deploy** (pushes to `main` and manual runs only), in the `production` environment:
+   - Exchanges a GitHub OIDC token for short-lived AWS credentials on the role in the `AWS_DEPLOY_ROLE_ARN` secret.
+     No AWS access keys are stored in GitHub.
+   - Builds both images and pushes them to ECR, tagged with the commit SHA.
+   - Rolls them out on the instance with SSM Run Command, so no inbound SSH is needed.
+   - Smoke-tests the live site: health, the `/scan` route, and a demo scan that must flag exactly 6 bots.
 
-The deploy job stays skipped until `deploy/ec2/setup-cicd.sh` has been run once. That script creates the ECR repos,
-the instance role and the GitHub deploy role, and sets the repo variables (`AWS_ROLE_ARN`, `AWS_REGION`,
-`EC2_INSTANCE_ID`, `APP_URL`).
+**Access.** The deploy role is defined in `infra/github-deploy-role.yaml` and trusts only this repo's `production`
+environment. It can push to the two `clickfraud-monitor` ECR repos and send commands to this one instance, nothing
+else.
+
+**Safety.** Deploys queue instead of cancelling each other, so a rollout is never cut off halfway. To require approval
+before each deploy, add required reviewers under Settings → Environments → production.
+
+**One-time bootstrap.** The deploy job stays skipped until `deploy/ec2/setup-cicd.sh` has been run once with admin
+credentials, because GitHub can't create its own access to AWS. The script deploys `infra/github-deploy-role.yaml` as
+the stack `clickfraud-monitor-github-deploy`, attaches the instance role to the EC2 host, creates the `production`
+environment and sets `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION`, `EC2_INSTANCE_ID` and `APP_URL`.
 
 ## Notes on the data
 

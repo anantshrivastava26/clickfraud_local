@@ -69,9 +69,17 @@ jobs:
   deploy:
     name: Deploy to EC2
     needs: [backend, frontend]
-    # Runs only on main, and only once deploy/ec2/setup-cicd.sh has set the repo variables.
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.AWS_ROLE_ARN != ''
+    # Runs only on main, and only once deploy/ec2/setup-cicd.sh has bootstrapped AWS and set the variables.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.EC2_INSTANCE_ID != ''
     runs-on: ubuntu-latest
+    # The deploy role only trusts this environment. Add required reviewers to it for an approval gate.
+    environment:
+      name: production
+      url: ${{ vars.APP_URL }}
+    # Deploys queue rather than cancel, so a rollout is never cut off halfway.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
@@ -81,9 +89,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # OIDC: GitHub issues a token, AWS exchanges it for short-lived credentials. No stored keys.
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - id: ecr
@@ -139,10 +148,16 @@ jobs:
           echo "Status: $status"
           [ "$status" = "Success" ]
 
-      - name: Health check
+      - name: Smoke test live site
+        env:
+          APP_URL: ${{ vars.APP_URL }}
         run: |
           for _ in $(seq 1 20); do
-            curl -sf "${{ vars.APP_URL }}/api/health" && exit 0
+            curl -sf "$APP_URL/api/health" | grep -q '"model_loaded":true' && break
             sleep 3
           done
-          echo "Health check failed" && exit 1
+          curl -sf "$APP_URL/api/health" | grep -q '"model_loaded":true' || { echo "API not healthy"; exit 1; }
+          curl -sf -o /dev/null "$APP_URL/scan" || { echo "SPA route /scan not served"; exit 1; }
+          bots=$(curl -sf -F file=@frontend/public/samples/demo_click_log.csv "$APP_URL/api/scan" | jq '.counts.bot')
+          [ "$bots" = "6" ] || { echo "Expected 6 bot devices in demo log, got $bots"; exit 1; }
+          echo "Live site healthy; demo scan flagged $bots bots"
